@@ -11,4 +11,4 @@ Authorization API call:
 http://localhost:8080/api/linkedin/authorize
 
 First open authorize API in the same browser where the SwaggerUI opened.
-Then send a post with 
+Then send a post with /linkedin/posts call.
