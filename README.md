@@ -1,7 +1,7 @@
 # homework4linkedin
 ## Setup
 
-move example.application.properties tp application.properties and set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET.
+Copy example.application.properties to application.properties and set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET.
 
 ## Usage
 Swagger UI:
