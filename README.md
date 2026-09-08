@@ -1,7 +1,7 @@
 # homework4linkedin
 ## Setup
 
-Copy example.application.properties to application.properties and set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variable.
+Copy example.application.properties to application.properties and set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variables.
 
 ## Usage
 
