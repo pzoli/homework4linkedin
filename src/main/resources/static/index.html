@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LinkedIn Post Publisher</title>
+    <style>
+        :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #172033; background: #f4f7fb; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+        main { width: min(100%, 720px); background: #fff; border-radius: 18px; box-shadow: 0 16px 48px #1720331c; overflow: hidden; }
+        header { padding: 36px 40px; background: linear-gradient(135deg, #0a66c2, #004182); color: white; }
+        h1 { font-size: clamp(1.75rem, 4vw, 2.4rem); margin: 0 0 8px; letter-spacing: -.04em; }
+        header p { margin: 0; opacity: .9; }
+        section { padding: 28px 40px; border-bottom: 1px solid #e7ebf1; }
+        section:last-child { border-bottom: 0; }
+        h2 { font-size: 1.05rem; margin: 0 0 14px; }
+        .status { display: flex; gap: 10px; align-items: center; padding: 13px 15px; border-radius: 10px; background: #f2f5f8; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; flex: 0 0 auto; }
+        .connected .dot { background: #16803c; }
+        .connected { background: #ecfdf3; color: #14532d; }
+        button { border: 0; border-radius: 9px; padding: 11px 16px; background: #0a66c2; color: #fff; cursor: pointer; font: inherit; font-weight: 650; }
+        button:hover { background: #004182; }
+        button:disabled { cursor: not-allowed; opacity: .5; }
+        textarea { width: 100%; min-height: 160px; resize: vertical; border: 1px solid #bac4d1; border-radius: 9px; padding: 13px; font: inherit; line-height: 1.5; }
+        textarea:focus { outline: 3px solid #0a66c233; border-color: #0a66c2; }
+        .actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 13px; }
+        #counter, .hint { color: #5a6575; font-size: .86rem; }
+        #message { margin: 14px 0 0; min-height: 1.4em; font-size: .94rem; }
+        .error { color: #b42318; } .success { color: #16803c; }
+        a { color: #0a66c2; }
+        @media (max-width: 520px) { header, section { padding: 26px 22px; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <h1>LinkedIn Post Publisher</h1>
+        <p>Kapcsolódj a LinkedIn-fiókodhoz, majd publikáld a szöveges posztodat.</p>
+    </header>
+
+    <section>
+        <h2>1. LinkedIn kapcsolat</h2>
+        <div id="status" class="status"><span class="dot"></span><span>Kapcsolat ellenőrzése…</span></div>
+        <p class="hint">A jóváhagyási folyamat a LinkedIn biztonságos oldalán történik.</p>
+        <button id="connect" type="button">Kapcsolódás a LinkedInhez</button>
+    </section>
+
+    <section>
+        <h2>2. Új poszt</h2>
+        <form id="post-form">
+            <label for="text" class="hint">Poszt szövege</label>
+            <textarea id="text" name="text" maxlength="3000" placeholder="Írd ide a LinkedIn-posztod szövegét…" required disabled></textarea>
+            <div class="actions">
+                <span id="counter">0 / 3000</span>
+                <button id="publish" type="submit" disabled>Közzététel</button>
+            </div>
+        </form>
+        <p id="message" role="status"></p>
+    </section>
+
+    <section class="hint">Technikai dokumentáció: <a href="/swagger-ui/index.html">Swagger UI</a></section>
+</main>
+<script>
+    const statusElement = document.getElementById('status');
+    const connectButton = document.getElementById('connect');
+    const textArea = document.getElementById('text');
+    const publishButton = document.getElementById('publish');
+    const counter = document.getElementById('counter');
+    const message = document.getElementById('message');
+
+    function setMessage(text, kind = '') {
+        message.textContent = text;
+        message.className = kind;
+    }
+
+    async function loadStatus() {
+        try {
+            const response = await fetch('/api/linkedin/status');
+            const status = await response.json();
+            const connected = status.connected === true;
+            statusElement.className = `status${connected ? ' connected' : ''}`;
+            statusElement.innerHTML = `<span class="dot"></span><span>${connected ? `Kapcsolódva: ${status.author}` : 'Nincs LinkedIn kapcsolat'}</span>`;
+            textArea.disabled = !connected;
+            publishButton.disabled = !connected;
+            connectButton.hidden = connected;
+        } catch {
+            statusElement.innerHTML = '<span class="dot"></span><span>Az állapot lekérdezése nem sikerült.</span>';
+            setMessage('Nem érhető el a szerver.', 'error');
+        }
+    }
+
+    connectButton.addEventListener('click', () => { window.location.assign('/api/linkedin/authorize'); });
+    textArea.addEventListener('input', () => { counter.textContent = `${textArea.value.length} / 3000`; });
+
+    document.getElementById('post-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const text = textArea.value.trim();
+        if (!text) return setMessage('Írj be egy posztszöveget.', 'error');
+        publishButton.disabled = true;
+        setMessage('Közzététel folyamatban…');
+        try {
+            const response = await fetch('/api/linkedin/posts', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+            });
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.error || 'A közzététel nem sikerült.');
+            textArea.value = '';
+            counter.textContent = '0 / 3000';
+            setMessage(`A poszt elkészült. Azonosító: ${body.postId}`, 'success');
+        } catch (error) {
+            setMessage(error.message, 'error');
+            await loadStatus();
+        } finally {
+            publishButton.disabled = textArea.disabled;
+        }
+    });
+
+    const authResult = new URLSearchParams(window.location.search).get('linkedin');
+    if (authResult === 'connected') setMessage('A LinkedIn kapcsolat sikeresen létrejött.', 'success');
+    if (authResult === 'denied') setMessage('A LinkedIn-jóváhagyást elutasítottad.', 'error');
+    if (authResult === 'failed') setMessage('A LinkedIn-kapcsolat nem jött létre. Indítsd újra a folyamatot.', 'error');
+    history.replaceState({}, '', '/');
+    loadStatus();
+</script>
+</body>
+</html>

@@ -54,28 +54,37 @@ public class LinkedInController {
 
     /** LinkedIn ide irányít vissza a felhasználó jóváhagyása után. */
     @GetMapping("/callback")
-    @Operation(summary = "OAuth visszahívás", description = "A LinkedIn hívja meg; kézzel általában nem szükséges használni.")
+    @Operation(summary = "OAuth visszahívás", description = "A LinkedIn hívja meg; siker esetén visszairányít a webes felületre.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "A LinkedIn kapcsolat létrejött"),
-            @ApiResponse(responseCode = "400", description = "A jóváhagyás elutasult vagy az OAuth state érvénytelen")
+            @ApiResponse(responseCode = "302", description = "Visszairányítás a webes felületre")
     })
-    public ResponseEntity<?> callback(
+    public ResponseEntity<Void> callback(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String state,
             @RequestParam(required = false, name = "error") String error,
             @Parameter(hidden = true) HttpSession session
     ) {
         if (error != null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", error));
+            return redirectToUi("denied");
         }
         Object expectedState = session.getAttribute(OAUTH_STATE);
         session.removeAttribute(OAUTH_STATE);
         if (expectedState == null || !expectedState.equals(state) || code == null || code.isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Érvénytelen OAuth state vagy hiányzó authorization code."));
+            return redirectToUi("failed");
         }
         LinkedInService.AuthenticatedMember member = linkedInService.exchangeCode(code);
         session.setAttribute(LINKEDIN_MEMBER, member);
-        return ResponseEntity.ok(Map.of("message", "LinkedIn kapcsolat létrejött. Most POST /api/linkedin/posts hívással küldhetsz posztot.", "author", member.authorUrn()));
+        return redirectToUi("connected");
+    }
+
+    @GetMapping("/status")
+    @Operation(summary = "LinkedIn kapcsolat állapota")
+    public Map<String, Object> status(@Parameter(hidden = true) HttpSession session) {
+        Object value = session.getAttribute(LINKEDIN_MEMBER);
+        if (value instanceof LinkedInService.AuthenticatedMember member) {
+            return Map.of("connected", true, "author", member.authorUrn());
+        }
+        return Map.of("connected", false);
     }
 
     @PostMapping("/posts")
@@ -97,5 +106,11 @@ public class LinkedInController {
         }
         String postId = linkedInService.createTextPost(member, request == null ? null : request.text());
         return ResponseEntity.status(HttpStatus.CREATED).body(new LinkedInPostResponse(postId));
+    }
+
+    private static ResponseEntity<Void> redirectToUi(String result) {
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header("Location", "/?linkedin=" + result)
+                .build();
     }
 }
